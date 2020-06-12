@@ -1,0 +1,40 @@
+
+#+SEQ_TODO: TODO(t) WAITING(w) IN-PROCESS(p) | CANCELLED(c) DONE(d)
+
+
+* Paths & Directories
+** TODO list.files
+** TODO basename
+** TODO normalizePath
+* Data Structures
+** Strings
+*** TODO regex for string split, whats the escape character
+*** slicing, subsitiuting, splitting
+** Lists
+*** do.call
+*** rbind
+** Vectors
+** Matrices
+** Data.frames
+** Factors
+** Tables
+*** convert to dataframe
+* Data.table / Tibble
+* Reading files
+** TODO count.fields for pre-checking columns
+** TODO read.table/csv  
+* Apply suite of functions
+* Summary statistics
+_3 main ways_
+* Regex in R 
+* Date-Time
+Sys.date(0
+* Melt/ cast, wide / long
+* Plotting and vizualization (ggplot unless otherwise stated)
+** Default always good themes and settings
+** venn.diagram
+* Rmarkdown
+** {r} options 
+* Nifty tricks
+** do.call
+** strings to variable eval(as.name(paste0('tcga', '_beta_egfr'))))

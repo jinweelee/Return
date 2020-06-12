@@ -1,0 +1,99 @@
+---
+title: "R fundamentals"
+output:
+  html_notebook:
+    number_sections: true
+    css: C:/Users/jinwe/Dropbox/personalR/themes_styles/main_style.css
+  html_document:
+    df_print: paged
+---
+
+# Introduction
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing 
+
+## About Rmarkdown
+1. **General Markdown tips**
+    1. **Use *1.* for every ordered list**
+    1. 4 space indentation for nested list
+
+1. **R Code Chunk options**
+    1. **Ctrl+Shift+Enter**: Run R code chunk
+    1. **include=bool**: Code always evaluated. Controls both code and results from appearing.
+    1. **echo=bool**: Code always evaluated. Controls code from appearing **BUT RESULTS ALWAYS APPEAR.**
+    1. **eva=bool**: Controls code evaluation. Code always appears.
+    1. **fig.cap/,hide = "..."**: Figure captions/hiding
+
+1. **R Code Chunk tips**
+    1. Code code chunks are not evaluated at preview. 
+    1. Even though results = "hide" still shown in notebook, results are NOT knitted into output
+    1. When code chunk options/ text are modified, code needs to be re-run before being previewed/knitted.
+    
+
+# R environment and setup
+
+## R environment
+```{r, eval=FALSE}  
+##?read.table
+find("read.table")
+objects() # current variables
+search() # attached packages and data.frames
+detach() # detaches package
+rm(list=ls()) ## removes all attached packages
+```
+
+
+## Setup dependencies and variables
+
+```{r Dependencies, eval = TRUE, results="hide", message=FALSE, warning=FALSE}
+# Importing necessary packages
+library(tidyverse)
+library(data.table)
+library(datasets)
+```
+
+```{r Variables, eval= TRUE, results ='hide'}
+# Setting variables
+data(iris)
+iris_dt <- data.table(iris)
+```
+
+
+# General topics
+
+
+## Data.table
+The package data.table is written by Matt Dowle in year 2008.
+
+Think of data.table as an advanced version of data.frame. It inherits from data.frame and works perfectly even when data.frame syntax is applied on data.table. This package is good to use with any other package which accepts data.frame.
+
+### Basic df operations and class data types
+
+
+## Strings and Regex 
+
+
+
+## List manipulation
+
+
+# Data vizualization
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
