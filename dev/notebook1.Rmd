@@ -3,7 +3,7 @@ title: "R fundamentals"
 output:
   html_notebook:
     number_sections: true
-    css: C:/Users/jinwe/Dropbox/personalR/themes_styles/main_style.css
+    css: /Users/jinwee/github/Return/themes_styles/main_style.css
   html_document:
     df_print: paged
 ---
