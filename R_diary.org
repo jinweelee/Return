@@ -1,7 +1,6 @@
 
 #+SEQ_TODO: TODO(t) WAITING(w) IN-PROCESS(p) | CANCELLED(c) DONE(d)
 
-
 * Paths & Directories
 ** TODO list.files
 ** TODO basename
@@ -27,6 +26,10 @@
 * Summary statistics
 _3 main ways_
 * Regex in R 
+** TODO / in R
+** TODO Escape character set for ]
+** TODO Advanced topics
+** TODO Flags
 * Date-Time
 Sys.date(0
 * Melt/ cast, wide / long

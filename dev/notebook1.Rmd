@@ -78,10 +78,11 @@ Think of data.table as an advanced version of data.frame. It inherits from data.
 
 ### Basic dt operations and class data types
 
+## String manipulation
 
-## Strings and Regex 
-
-```{r Patterns}
+### String functions
+The various suite of functions for string manipulation
+```{r string functions}
 # Location
 # grep() returns indices of matched items, while grepl() returns a logical vector to represent matches.
 grep("A", c("ABC","DEF","CBA"))
@@ -100,11 +101,89 @@ gsub("A", "B", c("ABA","ZZZ"))
 
 
 # Splitting
-
+# Note if pattern is repeated
+strsplit("bbbAAAABE", "A")
 
 # Extraction
+```
+
+### Regex
+Using grep() for these regex examples
+```{r regex}
+regex_string <- "Many years later, as he faced the firing squad"
+regex_vec <- c("AABAD ","ZADASSADF89", "adqw","ASSSSSDFAS'DFA", "Hippopotamus", "^[-]")
+
+# Special characters
+# There are some special characters in R that cannot be directly coded in a string. For example, apostrophes.
+# Need to use escape character in our query string, also that "\" itself is a special character
+# OH SHIT, WE NEED TO ESCAPE WITH A \ FOR REGEX, BUT THE \ ITSELF HAS TO BE ESCAPED FOR R
+# AND WTF, \\\\
+grep("\'", regex_vec)
+
+# Anchors
+grep("^A", regex_vec)
+grep("A$", regex_vec)
+
+# Quantifiers
+# Note, by default, quantifiers are only applied to the immediate preceeding object/"character"
+# Wildcard * number of '.', any character string
+grep("^A.*A$", regex_vec)
+# At least one / Zero or one
+grep("AS+", regex_vec)
+grep("AS?", regex_vec)
+# Specifying quantities, exact, unlimited range, limited range
+grep("AS{2}", regex_vec) # Note this still matches "ASSSSSDFASDFA"
+grep("AS{2,}", regex_vec)
+grep("AS{2,4}", regex_vec)
+
+# Character sets
+# Basically just to match at least one of the items in the set
+# Note that we need an escape character in front of \set and that the captial version of the set is just the negation
+# Note that the basic examples are just single character expressions, so "\\S", even if the query has even 1 non space character
+grep("[0-9]", regex_vec)
+grep("\\d", regex_vec)
+grep("[A-Z]", regex_vec)
+grep("\\w", regex_vec)
+grep("[A-z]", regex_vec)
+grep("\\s", regex_vec)
+grep("\\S", regex_vec)
+# More than 1 range and character in set, here 2 ranges and w
+grep("[A-F0-9w]",regex_vec)
+# Special characters in sets include: ], \, ^, - and must be escaped with \
+grep("[\\[]",regex_vec)
+grep("[\\]]",regex_vec) # Note, some error with \\]
+grep("\\]",regex_vec)
+
+
+# Operators   
+# OR
+# grep("(^A|A$)", regex_vec)
+# strsplit(regex_vec[5], "(i|o)p")[[1]]
+# strsplit(regex_vec[5], "[io]p")[[1]]
+# regmatches(regex_vec[5], gregexpr("(i|o)p", regex_vec[5]))
+# regmatches(regex_vec[5], gregexpr("[io]p", regex_vec[5]))
+# AND
+
+
+# ^ inverted character set
+grep("AS{2}[^S]", regex_vec)
+grep("AS{2}[^(S|A)]", regex_vec)
+grep("AS{2}[^SZ]", regex_vec)
+
+
+# Groupings and Bracket expressions 
+#grep()
+
+
+
+
+
+
 
 ```
+
+Combining regex expressions, varies whether or not the query is AND / OR
+
 
 ## List manipulation
 
