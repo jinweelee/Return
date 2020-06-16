@@ -1,18 +1,20 @@
 ---
 title: "R fundamentals"
 output:
-  html_document:
+  prettydoc::html_pretty:
+    theme: architect
+    highlight: vignette
     number_sections: true
+    toc: true
     css: /Users/jinwee/github/Return/themes_styles/main_style.css
     df_print: paged
 ---
 
 # Introduction
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+You can transform an R Markdown file in two ways, either by knitting it The rmarkdown package will call the knitr package. knitr will run each chunk of R code in the document and append the results of the code to the document next to the code chunk. Or converting the file. The rmarkdown package will use the pandoc program to transform the file into a new format, latex, html .. etc etc. Rendering is basically, knitting + converting.
 
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+In computer text processing, a markup language is a system for annotating a document in a way that is syntactically distinguishable from the text, meaning when the document is processed for display, the markup language is not shown, and is only used to format the text
 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing 
 
 ## About Rmarkdown
 1. **General Markdown tips**
@@ -56,7 +58,10 @@ library(datasets)
 ```
 
 ```{r Variables, eval= TRUE, results ='hide'}
-# Setting variables
+# Path variables
+data_dir <- "/Users/jinwee/github/Return/data/"
+
+# Data variables
 data(iris)
 iris_dt <- data.table(iris)
 ```
@@ -68,7 +73,7 @@ knitr::opts_chunk$set(cache=FALSE, fig.align="center", collapse = TRUE, message=
 ```
 
 
-# General topics
+# Data manipulation
 
 
 ## Data.table
@@ -78,18 +83,36 @@ Think of data.table as an advanced version of data.frame. It inherits from data.
 
 ### Basic dt operations and class data types
 
+```{r reading and writing in data.table}
+# All controls, sep, datatypes automatically detected by fread()
+# Notable params: header=TRUE/FALSE, skip= nrows, select/drop= vec of colnames to keep/drop, col.names= vec of colnames, stringAsFactors
+#flights_dt <- fread("https://raw.githubusercontent.com/Rdatatable/data.table/master/vignettes/flights14.csv")
+#fwrite(flights_dt, file = file.path(data_dir,"flights.csv"))
+flights_dt <- fread(file.path(data_dir,"flights.csv"))
+```
+
+
+```{r data.table column types/attributes etcetc}
+# Single column indexed $ as vector, [] indexed as dt
+
+
+
+```
+
+
 ## String manipulation
 
 ### String functions
 The various suite of functions for string manipulation
 ```{r string functions}
-# Location
+# Location of matching strings
 # grep() returns indices of matched items, while grepl() returns a logical vector to represent matches.
 grep("A", c("ABC","DEF","CBA"))
 grep("Z", c("ABC","DEF","CBA"))
 grepl("A", c("ABC","DEF","CBA"))
 
-# To find matching positions standardize and use gregexpr() because it gives ALL matches. Converting to vector to remove attributes.
+# Location of matching positions
+# To find matching positions standardize and use gregexpr() because it gives ALL matches.
 gregexpr_output <- gregexpr("AB", c("ABC","DEF","CBA", "ABAAB"))
 as.vector(gregexpr_output[[4]])
 as.vector(gregexpr_output[[2]])
@@ -99,18 +122,19 @@ as.vector(gregexpr_output[[2]])
 sub("A", "B", c("ABA","ZZZ"))
 gsub("A", "B", c("ABA","ZZZ"))
 
-
 # Splitting
-# Note if pattern is repeated
+# Note if pattern is repeated we get multiple empty strings
 strsplit("bbbAAAABE", "A")
 
 # Extraction
+
+
 ```
 
 ### Regex
 Using grep() for these regex examples
 ```{r regex}
-regex_string <- "Many years later, as he faced the firing squad"
+regex_string <- "Many years later, as he faced thefiringsquad"
 regex_vec <- c("AABAD ","ZADASSADF89", "adqw","ASSSSSDFAS'DFA", "Hippopotamus", "^[-]")
 
 # Special characters
@@ -123,6 +147,13 @@ grep("\'", regex_vec)
 # Anchors
 grep("^A", regex_vec)
 grep("A$", regex_vec)
+#\b is a 0-based matching (i.e the \b exactly matches the position) for: 1/2) Before/ after the first character in the string, if it is a word character. #3) between a word and non word character, effectively a whole word search.
+# note that \B necessitates that the boundaries are word characters
+# note that word characters,[^a-zA-Z0-9_], underscore and numbers included.
+grep("\\bas\\b", regex_string)
+regmatches(regex_string, gregexpr("\\Bfiring\\B", regex_string))
+# note that \b can be used as an actual matching character when preceeded by a word 
+
 
 # Quantifiers
 # Note, by default, quantifiers are only applied to the immediate preceeding object/"character"
@@ -160,29 +191,35 @@ grep("\\]",regex_vec)
 # grep("(^A|A$)", regex_vec)
 # strsplit(regex_vec[5], "(i|o)p")[[1]]
 # strsplit(regex_vec[5], "[io]p")[[1]]
-# regmatches(regex_vec[5], gregexpr("(i|o)p", regex_vec[5]))
-# regmatches(regex_vec[5], gregexpr("[io]p", regex_vec[5]))
-# AND
-
+regmatches(regex_vec[5], gregexpr("[io]p", regex_vec[5])) #i/o position included in the match
 
 # ^ inverted character set
 grep("AS{2}[^S]", regex_vec)
 grep("AS{2}[^(S|A)]", regex_vec)
 grep("AS{2}[^SZ]", regex_vec)
 
+# Look forward/behind
+# (?=.), (?!.),  (?<=.), (?<!.) ,PERL = TRUE
+regmatches(regex_vec[5], gregexpr("(?<=i|o)p", regex_vec[5], perl =TRUE)) #i/o position NOT included in the match
+regmatches(regex_vec[5], gregexpr("p(?!p)", regex_vec[5], perl =TRUE)) #p position NOT included in the match
 
-# Groupings and Bracket expressions 
-#grep()
+# Capturing groups and back references
+# The part of input string matching the capturing group () is stored in a numbered "backreference"
+# Note, we can also name capture groups, ?<foo>[abc])\k<foo>
+# gregexpr(("(p|o)\\1"), regex_vec[5], perl = TRUE) ## capture group output not consistent
+# gregexpr(("(?<foo>p|o)(?<foo2>p|o)"), regex_vec[5], perl = TRUE) ## capture group output not consistent.
 
-
-
-
-
-
+# Ok lets think about how the search proceeds, this is basically a 2 character search, non-overlapping patterns
+# If we want overlapping patterns, one character at a time, we need look ahead. 
+as.vector(gregexpr(("(p|o)(p|o)"), regex_vec[5], perl = TRUE)[[1]])
+as.vector(gregexpr(("(p|o)(?=p|o)"), regex_vec[5], perl = TRUE)[[1]])
 
 ```
 
 Combining regex expressions, varies whether or not the query is AND / OR
+
+## Factors
+
 
 
 ## List manipulation
