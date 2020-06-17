@@ -1,0 +1,27 @@
+---
+title: "R fundamentals"
+output:
+  prettydoc::html_pretty:
+    theme: architect
+    highlight: vignette
+    number_sections: true
+    toc: true
+    css: /Users/jinwee/github/Return/themes_styles/main_style.css
+    df_print: paged
+---
+
+```{r loading packages, include = FALSE}
+library(MPV)
+library(data.table)
+```
+
+
+# Simple Linear Regression
+```{r}
+dt2.1 <- data.table("Shear_strength" = c(2158.70, 1678.15, 2316.00, 2061.30, 2207.50, 1708.30, 1784.70, 2575.00, 2357.90, 2256.70, 2165.20),
+                   "Age" = c(15.50, 23.75, 8.00, 17.00, 5.50, 19.00, 24.00, 2.50, 7.50, 11.00, 13.00))
+
+dt2.1
+```
+
+## Least Squares Approximation
