@@ -1,0 +1,331 @@
+#  Page ranking 
+```{r q2, echo =FALSE}
+q2_graph <- g_s
+
+h_score_igraph <- hub_score(q2_graph)$vector
+top_h_score <- head(h_score_igraph[order(h_score_igraph, decreasing = TRUE)])
+a_score_igraph <- authority_score(q2_graph)$vector
+top_a_score <- head(a_score_igraph[order(a_score_igraph, decreasing = TRUE)])
+pr_99 <- page.rank(q2_graph, damping = 0.99)$vector
+pr_85 <- page.rank(q2_graph, damping = 0.85)$vector
+top_pr_99 <- head(pr_99[order(pr_99, decreasing = TRUE)])
+top_pr_85 <- head(pr_85[order(pr_85, decreasing = TRUE)])
+
+score_dt <- data.table("Node rank" = c(1:6),
+           "Hub Score" =  names(top_h_score),
+           "Authority Score" = names(top_a_score),
+           "PageRank (0.99)" =  names(top_pr_99),
+           "PageRank (0.85)" =  names(top_pr_85))
+
+kable(score_dt, caption = 'The top 6 most important nodes based on the various scores',
+      longtable = T, booktabs = T)
+
+```
+
+
+
+# Undirected network, components and coreness
+```{r q3a, echo=FALSE}
+g_u <- as.undirected(g_s)
+#resetting edge edge and vertex colors
+V(g_u)$color <- "darkorange"
+E(g_u)$color <- "grey"
+
+g_u_dens <- round(edge_density(g_u),5)
+g_u_diameter <- round(diameter(g_u),5)
+g_u_avg_dist <- round(mean_distance(g_u, unconnected = TRUE),5)
+
+g_u_deg <- degree(g_u, mode = "all")
+g_u_deg_dist <- degree.distribution(g_u, mode = "all")
+plot(x = c(0:max(g_u_deg)), y = g_u_deg_dist, cex = 1.2, xlab = "Degree", ylab = "", col = 2, type = "l")
+
+g_u_deg_dist_cul <- degree.distribution(g_u, mode = "all", cumulative = TRUE)
+#plot(x = log(c(0:max(g_u_deg))), y = log(g_u_deg_dist_cul), cex = 1.2, xlab = "Degree", col = 2, type = "l")
+```
+
+
+```{r q3b, echo=FALSE, fig.cap="Plot of the giant component"}
+#is.connected(g_u) False
+g_u_comps <- decompose.graph(g_u) #return the components, each as a graph
+g_u_n_comps <- length(g_u_comps)
+
+# Select the giant component
+giant_comp_idx <- which.max(sapply(g_u_comps, function(x) vcount(x)))
+g_u_giant <- g_u_comps[[giant_comp_idx]]
+V(g_u_giant)$color <- "darkorange"
+E(g_u_giant)$color <- "grey"
+g_u_giant_v_size <- vcount(g_u_giant)
+g_u_giant_e_size <- ecount(g_u_giant)
+
+par(mar=c(0,0,0,0)+.1)
+plot(g_u_giant, vertex.label=NA, vertex.size = 4)
+```
+
+There are a total of `r toString(g_u_n_comps)` components, with a giant component G comprising of `r toString(g_u_giant_v_size)` vertices and `r toString(g_u_giant_e_size)` edges.
+
+
+```{r q3c, echo=FALSE, fig.cap="Plot of the largest k-core"}
+g_u_coreness <- coreness(g_u)
+max_k <- max(g_u_coreness)
+
+kcore <- induced.subgraph(g, vids =  names(g_u_coreness[g_u_coreness >= max_k]))
+k_core_size <- vcount(kcore)
+par(mar=c(0,0,0,0)+.1)
+plot(kcore, vertex.label=NA, vertex.size = 4)
+```
+
+The maximum coreness is `r toString(max_k)`, resulting in a k-core of size `r toString(k_core_size)`.
+
+
+# Sampling
+
+We applied 4 sampling methods 
+
+```{r induced, echo =FALSE, fig.cap="Plot of induced subgraph"}
+q4_graph <- g_u
+K <- 200
+set.seed(12345)
+induced_sample_vids <-  as.character(sample(length(V(q4_graph)), K))
+induced_sample_graph <- induced.subgraph(q4_graph, vids = induced_sample_vids)
+induced_transitivity <- round(transitivity(induced_sample_graph, type = "global"), 5)
+induced_density <- round(edge_density(induced_sample_graph),5)
+
+par(mar=c(0,0,0,0)+.1)
+plot(induced_sample_graph, vertex.label = NA, vertex.size = 4)
+```
+
+
+```{r incident, echo =FALSE, fig.cap="Plot of incident subgraph"}
+set.seed(12345)
+edge_num <- 125 #setting predfined edge number to get ~200 vertices in sampled subgraph
+incident_sample_eids <- E(q4_graph)[sample(length(E(q4_graph)), edge_num)]
+incident_sample_graph <- subgraph.edges(q4_graph, eids = incident_sample_eids)
+incident_transitivity <- round(transitivity(incident_sample_graph, type = "global"), 5)
+incident_density <- round(edge_density(incident_sample_graph),5)
+
+par(mar=c(0,0,0,0)+.1)
+plot(incident_sample_graph,  vertex.label=NA, vertex.size = 4)
+```
+
+
+```{r snowball, echo =FALSE, fig.cap="Plot of snowball subgraph"}
+set.seed(12345)
+snowball_v_set <- sample(V(q4_graph),1)
+snowball_iterations <- 0
+while(length(snowball_v_set) <= 200){
+  snowball_nbs <- adjacent_vertices(q4_graph, snowball_v_set)
+  
+  for (i in 1:length(snowball_nbs)){
+    snowball_v_set <- union(snowball_v_set, snowball_nbs[[i]])
+  }
+  
+  
+  snowball_iterations <- snowball_iterations + 1
+}
+
+snowball_sample_graph <- induced_subgraph(q4_graph, vids = snowball_v_set)
+snowball_density <- edge_density(snowball_sample_graph)
+snowball_transitivity  <- transitivity(snowball_sample_graph, type = "global")
+par(mar=c(0,0,0,0)+.1)
+plot(snowball_sample_graph, vertex.label=NA, vertex.size = 4)
+```
+
+
+```{r respondent, echo =FALSE, fig.cap="Plot of respondent subgraph"}
+res_sample_graph <- g_s # use simplified graph
+set.seed(123456)
+res_seed <- sample(V(q4_graph),1)
+k <- 3
+V(res_sample_graph)$color <- "grey"
+E(res_sample_graph)$color <- "grey"
+V(res_sample_graph)[res_seed]$color <- "red"
+res_vec <- c(res_seed)
+total_res_vec <- c(res_seed)
+n_res <- length(which(V(res_sample_graph)$color == "red"))
+edge_vec <- c()
+
+while (n_res <= 200){
+  new_res_vec <- c()
+  total_res_vec <- c()
+  for (res in res_vec){
+    res_nbs <- neighbors(res_sample_graph, res, mode = "out")
+    if (length(res_nbs) > k){
+      res_nbs <- sample(res_nbs, k)
+    }
+    for (nb in res_nbs){
+      V(res_sample_graph)[nb]$color <- "red"
+      E(res_sample_graph)[res %->% nb]$color <- "red"
+      
+      if (!nb %in% total_res_vec) {
+        total_res_vec <- c(total_res_vec, nb)
+        new_res_vec <- c(new_res_vec, nb)
+      }
+    }
+  }
+  res_vec <- new_res_vec
+  n_res <- length(which(V(res_sample_graph)$color == "red"))
+}
+
+res_sample_graph_sub <- delete.edges(res_sample_graph, E(res_sample_graph)[which(E(res_sample_graph)$color == "grey")])
+res_sample_graph_sub <- delete.vertices(res_sample_graph_sub, V(res_sample_graph_sub)[which(V(res_sample_graph_sub)$color == "grey")])
+
+res_density <- edge_density(res_sample_graph_sub)
+res_transitivity  <- transitivity(res_sample_graph_sub, type = "global")
+
+V(res_sample_graph_sub)$color <- "darkorange"
+E(res_sample_graph_sub)$color <- "grey"
+par(mar=c(0,0,0,0)+.1)
+plot(res_sample_graph_sub,vertex.label = NA, vertex.size = 4)
+
+```
+
+# Partition
+
+```{r true, echo = FALSE, fig.cap = "True parition of giant component"}
+true_graph <- g_u_giant
+V(true_graph)$color[V(true_graph)$value == 0] <- "dodgerblue"
+V(true_graph)$color[V(true_graph)$value == 1] <- "seagreen"
+
+par(mar=c(0,0,0,0)+.1)
+plot(true_graph,  vertex.label = NA, vertex.size = 4)
+```
+
+
+```{r betw,echo = FALSE, fig.cap="Betweenness partition"}
+betw_partition <- g_u_giant
+while(components(betw_partition)$no < 2){
+  edges <- E(betw_partition)
+  bet = edge_betweenness(betw_partition, e = edges, directed = FALSE);
+  max_bet = which.max(bet)
+  betw_partition = betw_partition - edges[max_bet];
+}
+betw_part_1 <- decompose.graph(betw_partition)[[1]]
+betw_part_2 <- decompose.graph(betw_partition)[[2]]
+#table(V(betw_part_1)$value)
+#table(V(betw_part_2)$value)
+V(betw_partition)$color <- "seagreen"
+V(betw_partition)$color[which(V(betw_partition)$name %in% V(betw_part_2)$name)] <- "dodgerblue"
+par(mar=c(0,0,0,0)+.1)
+plot(betw_partition, vertex.label = NA, vertex.size = 4)
+```
+
+
+
+```{r hierch ,echo = FALSE}
+g_u_giant_adj <- get.adjacency(g_u_giant) 
+load(dist_mat_rdata)
+#dist_mat <- graphdist(g_u_giant_adj) 
+d_mat <- as.dist(dist_mat)
+complete_partition <- hclust(d_mat, method = "complete") %>%
+  cutree(k=2)
+average_partition <- hclust(d_mat, method = "average") %>%
+  cutree(k=2)
+single_partition <- hclust(d_mat, method = "single") %>%
+  cutree(k=2)
+
+hier_graph <- g_u_giant
+V(hier_graph)$complete <- complete_partition
+V(hier_graph)$average <- average_partition
+V(hier_graph)$single <- single_partition
+
+complete_lab_mat <- as.matrix(table(V(hier_graph)$complete, V(hier_graph)$value))
+complete_err_stat <- (complete_lab_mat[1,2] + complete_lab_mat[2,1]) / vcount(hier_graph)
+complete_err_rate <- min(1-complete_err_stat  , complete_err_stat)
+
+average_lab_mat <- as.matrix(table(V(hier_graph)$average, V(hier_graph)$value))
+average_err_stat <- (average_lab_mat[1,2] + average_lab_mat[2,1]) / vcount(hier_graph)
+average_err_rate <- min(1-average_err_stat  , average_err_stat)
+
+average_err_rate
+complete_err_rate
+```
+
+```{r complete, echo=FALSE, fig.cap="Complete-linkage partition"}
+V(hier_graph)$color[V(hier_graph)$complete == 1] <- "seagreen"
+V(hier_graph)$color[V(hier_graph)$complete == 2] <- "dodgerblue"
+par(mar=c(0,0,0,0)+.1)
+plot(hier_graph,  vertex.label = NA, vertex.size = 4)
+```
+
+```{r averagesingle, echo=FALSE,fig.cap="Average-linkage partition (Left) and Single-Linkage partition (right)"}
+V(hier_graph)$color[V(hier_graph)$average == 1] <- "seagreen"
+V(hier_graph)$color[V(hier_graph)$average == 2] <- "dodgerblue"
+par(mar=c(0,0,0,0)+.1)
+par(mfrow = c(1, 2))
+plot(hier_graph,  vertex.label = NA, vertex.size = 4)
+
+V(hier_graph)$color[V(hier_graph)$single == 1] <- "seagreen"
+V(hier_graph)$color[V(hier_graph)$single == 2] <- "dodgerblue"
+par(mar=c(0,0,0,0)+.1)
+plot(hier_graph,  vertex.label = NA, vertex.size = 4)
+```
+
+
+
+```{r mod, echo=FALSE, fig.cap="Modularity partition"}
+mod_graph <- g_u_giant
+mod_community <- fastgreedy.community(mod_graph)
+mod_community_cut <- cut_at(mod_community, no = 2)
+V(mod_graph)$mod_value <- sapply(mod_community_cut, function(x) ifelse(x == 2, 0, 1)) # renaming assigned communities
+
+mod_part_score <- modularity(mod_graph, V(mod_graph)$mod_value+1)# adding 1 to shift membership
+true_mod_score <- modularity(mod_graph, V(mod_graph)$value+1) # adding 1 to shift membership
+
+
+mod_lab_mat <- as.matrix(table(V(mod_graph)$mod_value, V(g_u_giant)$value))
+mod_err_stat <- (mod_lab_mat[1,2] + mod_lab_mat[2,1]) / vcount(mod_graph)
+mod_err_rate <- min(1-mod_err_stat , mod_err_stat)
+
+V(mod_graph)$color[V(mod_graph)$mod_value == 0] <- "seagreen"
+V(mod_graph)$color[V(mod_graph)$mod_value == 1] <- "dodgerblue"
+par(mar=c(0,0,0,0)+.1)
+plot(mod_graph,  vertex.label = NA, vertex.size = 4)
+
+```
+
+
+
+```{r kmeans, echo=FALSE, fig.cap="kmeans partition"}
+kmeans_graph <- g_u_giant
+g_u_giant_adj <- get.adjacency(g_u_giant)
+v1 <- eigen(g_u_giant_adj)$vectors[,1]
+v2 <- eigen(g_u_giant_adj)$vectors[,2]
+r <- v2/v1
+kmeans <- kmeans(r, centers =2)
+kmeans_commumity <- sapply(kmeans$cluster, function(x) ifelse(x == 2, 0, 1))
+V(kmeans_graph)$kmeans_value <- kmeans_commumity
+
+kmeans_lab_mat <- as.matrix(table(V(kmeans_graph)$kmeans_value, V(kmeans_graph)$value))
+kmeans_err_stat <- (kmeans_lab_mat[1,2] + kmeans_lab_mat[2,1]) / vcount(kmeans_graph)
+kmeans_err_rate <- min(1-kmeans_err_stat , kmeans_err_stat)
+
+V(kmeans_graph)$color[V(kmeans_graph)$kmeans_value == 0] <- "seagreen"
+V(kmeans_graph)$color[V(kmeans_graph)$kmeans_value == 1] <- "dodgerblue"
+par(mar=c(0,0,0,0)+.1)
+plot(kmeans_graph,  vertex.label = NA, vertex.size = 4)
+```
+
+
+```{r SBM, echo = FALSE}
+# only need to estimate b11, b22, b12
+comm_0_vertices <- V(g_u_giant)[V(g_u_giant)$value == 0]
+comm_0 <- induced_subgraph(g_u_giant, vids = comm_0_vertices)
+comm_0_edges <- E(comm_0)
+comm_1_vertices <- V(g_u_giant)[V(g_u_giant)$value == 1]
+comm_1 <- induced_subgraph(g_u_giant, vids = comm_1_vertices)
+comm_1_edges <- E(comm_1)
+
+# Using vertices within each community
+b11 <- length(E(comm_1)) / choose(length(V(comm_1)),2)
+b00 <- length(E(comm_0)) / choose(length(V(comm_0)),2)
+
+# no. edges between comm1 and 2 = total edges - comm1 edges - comm2 edges
+e12 <- length(E(g_u_giant)) - length(comm_1_edges) - length(comm_0_edges)
+
+b12 <- e12 / (length(comm_0_vertices) * length(comm_1_vertices))
+print(c(b00, b11, b12))
+```
+
+
+
+

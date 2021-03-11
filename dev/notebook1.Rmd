@@ -26,7 +26,7 @@ In computer text processing, a markup language is a system for annotating a docu
     1. **include=bool**: Code always evaluated. Controls both code and results from appearing.
     1. **echo=bool**: Code always evaluated. Controls code from appearing **BUT RESULTS ALWAYS APPEAR.**
     1. **eva=bool**: Controls code evaluation. Code always appears.
-    1. **results=""**: 
+    1. **results=""**: Namesake, options: "hide"
     1. **fig.cap/,hide = "..."**: Figure captions/hiding
 
 1. **R Code Chunk tips**
@@ -81,6 +81,8 @@ The package data.table is written by Matt Dowle in year 2008.
 
 Think of data.table as an advanced version of data.frame. It inherits from data.frame and works perfectly even when data.frame syntax is applied on data.table. This package is good to use with any other package which accepts data.frame.
 
+A data.table is internally a list as well with all its columns of equal length.
+
 ### Basic dt operations and class data types
 
 ```{r reading and writing in data.table}
@@ -89,11 +91,111 @@ Think of data.table as an advanced version of data.frame. It inherits from data.
 #flights_dt <- fread("https://raw.githubusercontent.com/Rdatatable/data.table/master/vignettes/flights14.csv")
 #fwrite(flights_dt, file = file.path(data_dir,"flights.csv"))
 flights_dt <- fread(file.path(data_dir,"flights.csv"))
+
+claims <- data.table(
+  ClaimNumber = c(123, 124, 125, 126),
+  PolicyNumber = c(1, 1, 3, 4),
+  ClaimCost = c(100, 2400, 350, 8000)
+)
+
+policies <- data.table(
+  PolicyNumber = c(1, 2, 3),
+  EffectiveDate = as.Date(c("2012-1-1", "2012-1-1", "2012-7-1")),
+  ExpirationDate = as.Date(c("2012-12-31", "2012-6-30", "2012-12-31"))
+)
+
 ```
 
+```{r data.table column types/attributes etcetc, results = 'hide'}
+# Possible colnames 
+#  [1] "year"      "month"     "day"       "dep_delay" "arr_delay" "carrier"   "origin"    "dest"      "air_time" 
+# [10] "distance"  "hour"   
 
-```{r data.table column types/attributes etcetc}
-# Single column indexed $ as vector, [] indexed as dt
+# Familiar data.frame operations
+rownames(flights_dt)
+# colnames(flights_dt)
+# nrow(flights_dt)
+# ncol(flights_dt)
+# flights_dt$carrier # indexed as vector 
+# 
+# # data.table styled commands, DT[i, j, by]
+# # DT[subset, calculate/update, groupby]
+# # Subsetting rows, note data.table does not support rownames
+# select_rows <- c(1:5)
+# flights_dt[1:5]
+# flights_dt[origin == "JFK" & month == 6L]
+# flights_dt[select_rows]
+# flights_dt[!select_rows]
+# 
+# 
+# # Subsetting columns
+# select_cols <-  c("arr_delay", "dep_delay")
+# flights_dt[, origin] #indexed as vector
+# flights_dt[, !.(origin)] #indexed as dt, .() is basically an alias for list(), seems like colnames directly referenced in .()
+# flights_dt[, !c("origin")]
+# flights_dt[, c("origin","dest")]
+# flights_dt[, .(time = air_time, dist = distance)] # renaming subsetted columns with list() system.
+# flights_dt[, list(time = air_time, dist = distance)] # same thing with normal list
+# flights_dt[, ..select_cols] # `..` look "up" one-level to look for the select_cols variable
+# flights_dt[, !..select_cols]
+# 
+# 
+# # Subsetting in i + Functions in j
+# flights_dt[origin == "JFK" & month == 6L, .(m_arr = mean(arr_delay), m_dep = mean(dep_delay))]
+# flights_dt[origin == "JFK" & month == 6L, .(n_obs = length(dest), n_obs2 = .N)] # get number of obs, .N stores n obs of current group
+# 
+# # Subsetting in i + Functions in j + aggregating by
+# # Counts, mean, sum, unique
+# flights_dt[origin != "JFK", .(counts = .N), by = .(origin)]
+# flights_dt[carrier == "AA", .(counts = .N), by = .(origin, dest)]
+# flights_dt[carrier == "AA", .(avg_arr_delay = mean(arr_delay), avg_dep_delay = mean(dep_delay) ), by = .(origin, dest, month)] 
+# # Creating key and sorting output based on grouping variables with keyby
+# flights_dt[carrier == "AA", .(avg_arr_delay = mean(arr_delay), avg_dep_delay = mean(dep_delay) ), keyby = .(origin, dest, month)] 
+# 
+# # Expressions in by
+# # basically converting the columns we want to group by, into a diff vector.
+# flights_dt[, .N, .(dep_delay>0, arr_delay>0)]
+# flights_dt[, .N, .(paste0(origin,"_suffix"))]
+# 
+# 
+# # Chaining
+# flights_dt[carrier == "AA", .(avg_arr_delay = mean(arr_delay), avg_dep_delay = mean(dep_delay) ), by = .(origin, dest, month)][order(origin, avg_dep_delay)] 
+# # chaining + assignment (note reference semantics for better version)
+# #flights_dt$carrier[flights_dt$year == 2014] <- paste0(flights_dt$carrier[flights_dt$year == 2014] , "_suffx")
+# 
+# # SD
+# # .SD. It stands for Subset of Data. It by itself is a data.table that holds the data for the current group defined using by.
+# # by default, .SD includes all columns except grouping columns.
+# #lapply(flights_dt, function(x) mean(x))
+# flights_dt[, lapply(.SD, mean), by= .(carrier, origin, dest)]
+# #note, .SDcols for specific columns
+# 
+# # Reference semantics
+# # :=, := operator updates data.table columns in-place (by reference).
+# # does NOT return anything, modifies in place, no repeat assignment 
+# flights_dt[, `:=`(speed = distance / air_time)]
+# flights_dt[year == 2014, carrier := paste0(carrier,"_suffix")]
+# flights_dt[, c("origin", "dest") := NULL]
+# flights_dt[, speed := NULL] # deleting column
+# flights_dt[, c("origin", "dest") := NULL]
+# 
+# 
+
+# # Additional parameters
+# Returns row numbers that match condition
+flights_dt[origin == "JFK", which = TRUE]
+
+
+# # Joins
+#The important thing to remember when doing a basic X[Y] join using data.table is that Y  will have all of its rows in the resultant table (unless otherwise specified). 
+# colnames(claims) -> "ClaimNumber"  "PolicyNumber"(1,1,3,4) "ClaimCost"
+# colnames(policies) -> "PolicyNumber"(1,2,3)   "EffectiveDate"  "ExpirationDate"
+policies[claims,  on = .(PolicyNumber)] # alll claims, non-merged with NA entries 
+policies[claims,  on = .(PolicyNumber), nomatch = NULL] # only claims that merge
+claims[!policies,  on = .(PolicyNumber)] # entry of claims that dont merge
+# non eqiuvalent join with condition
+policies[, PolicyCost := 400]
+policies[claims,  on = .(PolicyNumber, PolicyCost > ClaimCost)] # ClaimCost gets overwritten to PolicyCost?
 
 
 
@@ -223,7 +325,12 @@ Combining regex expressions, varies whether or not the query is AND / OR
 
 
 ## List manipulation
+```{r lists}
+# Named list creation from vector
+#setNames(values, name_vector)
 
+
+```
 
 # Data vizualization
 

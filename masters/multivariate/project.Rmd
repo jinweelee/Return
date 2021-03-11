@@ -1,0 +1,194 @@
+---
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+  always_allow_html: yes
+---
+```{r variables and settings for PCA and fact, echo = FALSE, include = FALSE}
+library(data.table)
+library(pca3d)
+library(rgl)
+library(knitr)
+library(ggplot2)
+library(ggfortify)
+knitr::opts_chunk$set(fig.width=6, fig.height=3) 
+
+###########
+#NOTE, the only variable to change
+#change this to path where "seeds.txt" is stored
+data_dir <- "/Users/jinwee/github/Return/data/multivariate_analysis/"
+############
+
+seed_data <- fread(file.path(data_dir, "seeds.txt")) # reading in main data
+seed_dt <- seed_data[, !c("group")] #main data without "group" column
+group_list <- list("Kama", "Rosa", "Canadian")
+seed_data$group <- sapply(seed_data$group, function(x) group_list[[x]])
+col_palette <- c("dodgerblue", "orangered", "seagreen") #col palette for plotting variables
+```
+
+```{r functions, echo = FALSE, include = FALSE}
+get_factor_var_table <- function(cor_mat, loading_mat){
+  princ <- princomp(covmat = cor_mat , cor = TRUE)
+  factor_variance <- apply(loading_mat,2,function(x) {sum(x^2)})
+  factor_variance_prop <- factor_variance / sum(unname(princ$sdev^2))
+  factor_variance_prop_cul <- cumsum(factor_variance_prop)
+  factor_variance_dt <- t(data.table("Variance explained" = factor_variance,
+                      "Culmulative proportion of total variance" = factor_variance_prop_cul))
+  colnames(factor_variance_dt) <- paste("Factor", seq(1:n_factors), sep = " ")
+  return(factor_variance_dt)
+}
+
+plot_loading_strength <- function(loading_mat){
+  loading_dt <- data.table(matrix(as.numeric(loading_mat),
+                                attributes(loading_mat)$dim,
+                                dimnames=attributes(loading_mat)$dimnames))
+  loading_dt$Variable <- rownames(loading_mat)
+  
+  loading_dt_melt <- melt(loading_dt,id="Variable", variable.name = 'Factor', value.name = "Loading")
+  
+  factor_plot <- ggplot(loading_dt_melt, aes(Variable, abs(Loading), fill=Loading)) + 
+    facet_wrap(~ Factor, nrow=1) + #place the factors in separate facets
+    geom_bar(stat="identity") + #make the bars
+    coord_flip() + #flip the axes so the test names can be horizontal  
+    scale_fill_gradient2(name = "Loading", 
+                         high = "blue", mid = "white", low = "red", 
+                         midpoint=0, guide="colourbar") +
+    ylab("Absolute Loading Strength") + #improve y-axis label
+    theme_bw(base_size=10) + 
+    theme(axis.title.x = element_text(size = 12),
+          axis.text.x = element_text(size = 9),
+          axis.title.y = element_text(size = 12),
+          axis.text.y = element_text(size = 10),
+          strip.text.x = element_text(size = 8),
+          legend.title = element_blank())
+  return(factor_plot)
+}
+```
+
+
+
+# 3.1 PCA
+&nbsp;  
+```{r pca var table, echo = FALSE}
+seed_pc <- prcomp(seed_dt, scale=TRUE)
+seed_pc_var_dt <- data.table("PC"= c(1:length(seed_pc[[1]])),
+                             "Variance explained" = seed_pc[[1]] ^2)
+seed_pc_var_dt$`Culmulative Proportion` <- cumsum(seed_pc_var_dt$`Variance explained`)/ sum(seed_pc_var_dt$`Variance explained`)
+
+kable(seed_pc_var_dt, align="c",caption = '**I want this in Bold**')
+      #caption = "Table 3.1: Variance explained by each principle component")
+```
+&nbsp;  
+
+&nbsp;  
+```{r pca scree plot, echo = FALSE}
+ggplot(seed_pc_var_dt, aes(PC, `Variance explained`)) + 
+  geom_line(stat = "identity") +
+  theme_bw()
+  # labs(caption = "Figure 3.1: ") + 
+  # theme(plot.caption = element_text(hjust = 0, size = 10, face = "bold"))
+  
+```
+&nbsp;  
+
+```{r pca 2 PCs, echo =FALSE, warning=FALSE}
+seed_data$group_factor <-  factor(seed_data$group) ## added for autplot plotting
+autoplot(seed_pc, data = seed_data, colour = "group_factor") + 
+  labs(color = "Group") +
+  scale_colour_manual(values = col_palette)
+  # labs(caption = "Figure 3.2: ") + 
+  # theme(plot.caption = element_text(hjust = 0, size = 10, face = "bold"))
+```
+&nbsp;  
+
+```{r generate 3dim pca plot, echo=FALSE, include = FALSE, dev="png", rgl=TRUE}
+# pca3d(seed_pc, group = seed_group, legend = "right")
+# rgl.snapshot(filename = pca_3d_plot)
+```
+
+
+&nbsp;  
+
+By examining the first 2 eigenvectors, we can see that pc1 is a general measure of the area, perimeter, kernel length, width and groove length. whereas the main contribution to pc2 is by the asymmetry coefficient and to a lesser extent, kernel length and groove length.  
+
+&nbsp;  
+
+```{r pca eigenvector,  echo =FALSE}
+seed_cor <- cor(seed_dt)
+seed_cor_eigen <- eigen(seed_cor)
+seed_eigen1 <- seed_cor_eigen$vectors[,1]
+seed_eigen2 <- seed_cor_eigen$vectors[,2]
+seed_eigen3 <- seed_cor_eigen$vectors[,3]
+
+kable(data.table("Variable" = colnames(seed_dt),
+           "Eigenvector 1" = seed_eigen1,
+           "Eigenvector 2" = seed_eigen2,
+           "Eigenvector 3" = seed_eigen3), caption = "Table 3.2")
+
+```
+
+
+&nbsp;
+
+# 3.2 Factor analysis
+&nbsp;  
+
+```{r factor loading table, echo = FALSE}
+n_factors <- 3
+seed_princ <- princomp(covmat = seed_cor , cor = TRUE)
+seed_factor_evals <- unname(seed_princ$sdev^2)[1:n_factors]
+seed_factor_evecs <- seed_princ$loadings[,1:n_factors]
+seed_loading_mat <- diag(seed_princ$sdev[1:n_factors]) %*% t(seed_factor_evecs) %>%
+   t()
+colnames(seed_loading_mat) <-  paste("Factor", seq(1:n_factors), sep = " ")
+
+seed_fact_var_tbl <- get_factor_var_table(seed_cor, seed_loading_mat)
+seed_fact_loading_plot <- plot_loading_strength(seed_loading_mat)
+
+kable(seed_fact_var_tbl, align = "c", caption = "Table 3.3")
+
+seed_fact_loading_plot
+  # labs(caption = "Figure 3.3: ") + 
+  # theme(plot.caption = element_text(hjust = 0, size = 10, face = "bold"))
+
+```
+&nbsp;  
+
+
+```{r factor rotation, echo = FALSE}
+
+seed_loading_mat_rotated <- varimax(seed_loading_mat)$loadings
+seed_fact_var_tbl_rotate <- get_factor_var_table(seed_cor, seed_loading_mat_rotated)
+seed_fact_loading_plot_rotate <- plot_loading_strength(seed_loading_mat_rotated)
+
+kable(seed_fact_var_tbl_rotate, align = "c", caption = "Table 3.4")
+seed_fact_loading_plot_rotate 
+  # labs(caption = "Figure 3.4: ") + 
+  # theme(plot.caption = element_text(hjust = 0, size = 10, face = "bold"))
+```
+
+
+
+```{r factor MLE estimation, echo =FALSE}
+seed_mle_rotate <- factanal(seed_dt, factors = 2,
+                          rotation = "varimax", method = "mle", scores = "regression")
+
+seed_mle_fact_scores <- as.data.table(seed_mle_rotate$scores)
+seed_mle_fact_scores$group <- seed_data$group
+#seed_mle_fact_scores
+
+seed_manova_res <- manova(cbind(Factor1,Factor2)~factor(group), data = seed_mle_fact_scores)
+
+kable(summary(seed_manova_res , test = "Wilks")$stats, caption = "Table 3.5")
+```
+
+
+
+
+
+
+
+
+

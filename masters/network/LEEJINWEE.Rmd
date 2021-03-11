@@ -1,0 +1,511 @@
+---
+title: "ST5225 Project"
+author: Lee Jin Wee, A0140556J
+date: November 15, 2020
+header-includes:
+- \usepackage{float} #use the 'float' package
+- \floatplacement{figure}{H} #make every figure with caption = h
+output:
+  #bookdown::html_document2
+  bookdown::pdf_book
+  
+---
+
+```{r loading initial variables and packages, echo =FALSE, include=FALSE}
+library(igraph)
+library(data.table)
+library(knitr)
+knitr::opts_chunk$set(fig.width=4, fig.height=2.5, fig.pos = "h")
+
+poll_file <- "/Users/jinwee/github/Return/data/network/polblogs.gml"
+# dist_mat_rdata <- "/Users/jinwee/github/Return/masters/network/dist_mat.RData"
+# load(dist_mat_rdata)
+
+g <- read.graph(poll_file, format = c("gml"))
+vertex_names <- as.character(c(1:length(V(g))))
+V(g)$name <- vertex_names
+V(g)$color <- "darkorange"
+E(g)$color <- "grey"
+
+g_s <- simplify(g)
+
+```
+
+
+```{r custom functions, echo =FALSE, include=FALSE}
+graphdist <- function(A){
+  n = dim(A)[1]; p = dim(A)[2]
+  distmatrix = matrix(0, nrow = n, ncol = n);
+  for(i in 1:p){
+    for(j in 1:i){
+      distmatrix[i,j] = sqrt(sum((A[i,-c(i,j)] - A[j,-c(i,j)])^2));
+    }
+  }
+  return(distmatrix)
+}
+```
+
+# Introduction
+```{r q1a, echo =FALSE}
+# summary(g)
+# V(g)
+# E(g)
+# is_directed(g) # TRUE, directed
+# is_simple(g) # FALSE not a simple graph
+# is_connected(g) # also not a connected graph
+# any_multiple(g)
+g_vcount <- vcount(g)
+g_ecount <- ecount(g)
+g_s_dens <- round(edge_density(g_s),5)
+g_s_diameter <- round(diameter(g_s),5)
+g_s_avg_dist <- round(mean_distance(g_s, unconnected = TRUE),5)
+```
+
+First, some key characteristics of the network are examined. The network was found to be a directed, disconnected graph that is not simple. It has numerous disconnected individual nodes and edges that form self-loops, which can be seen in Figure \@ref(fig:q1aplot). There are a total of `r toString(g_vcount)` vertices and `r toString(g_ecount)` edges.
+
+After simplifying the network, the overall edge density is `r toString(g_s_dens)` and this low value is reflective of how the network is generally sparse, with the exception of a cluster of highly connected nodes. Since the graph is disconnected, the diameter of `r toString(g_s_diameter)` was calculated using the largest connected component. This value is higher than the average distance of `r toString(g_s_avg_dist)`, which could be attributed to the dense connected component
+
+```{r q1aplot, echo=FALSE, fig.cap="Plot of entire polblogs graph"}
+par(mar=c(0,0,0,0)+.1)
+plot(g, vertex.label=NA, vertex.size = 4)
+```
+
+```{r q1b, echo = FALSE, warning = FALSE}
+g_s_deg <- degree(g_s, mode = "all")
+g_s_deg_dist <- degree.distribution(g_s, mode = "all")
+
+
+g_s_deg_dist_cul <- degree.distribution(g_s, cumulative = TRUE)
+g_s_deg <- degree(g_s, mode = "all")
+g_s_deg_add <- c(0:max(g_s_deg)) + 0.5 # adding 0.5 to shift from 0
+cul_deg_dist_dt <- data.table("log_deg"= log(g_s_deg_add), "log_ccdf" = log(g_s_deg_dist_cul))
+
+# Fitting linear model
+m <- lm(formula = log_ccdf  ~ log_deg, data = cul_deg_dist_dt)
+q1_alpha  <- round(m$coefficients["log_deg"] * -1, 5)
+# plot(x = log(0:max(g_s_deg)), y = log(g_s_deg_dist_cul), cex = 1.2, xlab = "Log Degree", ylab = "Log 1-Cumulative dist", col = 2, type = "l'")
+```
+
+Next, we examined the overall degree distribution of the network, and this is plotted in Figure \@ref(fig:q1bplot). Clearly, plot suggests that the network's degree follows a power-law distribution. Applying linear regression to the complementary cumulative distribution function (i.e 1 - CDF) the value of the paramter $\alpha$ was found to be `r toString(q1_alpha)`. T The $\alpha$ value of this graph can be said to be relatively low (i.e less than 2), which suggests that there are a still a substantial number of nodes with very high degree.
+
+```{r q1bplot, echo=FALSE, warning=FALSE,  fig.cap="Degree distribution of the simplified polblogs graph"}
+par(mar=c(0,0,0,0)+4)
+plot(x = 0:max(g_s_deg), y = g_s_deg_dist, cex = 1.2, xlab = "Degree",  ylab = "Frequency",col = 2, type = "l")
+```
+
+Then, using 4 different measures of centrality, the top 6 most important nodes were found for each measure and are shown in Table \@ref(tab:q1c). Firstly, it is notable that there are no shared nodes between In-degree and Out-degree ranking, suggesting that the top ranked nodes for each of these categories play exclusive roles in acting as "hubs" / "authoritative" nodes. Next, most of the top nodes for Betweeness centrality are also present in the In-degree and Out-degree ranking. This potentially suggests that the highly ranked nodes from these 3 categories serve as crucial connecting points between dense clusters of nodes. Lastly, it should be noted that the top nodes for Closeness centrality are not present in the previous 3 measures. This could be because the graph is disconnected and the varying sizes and structures of its components affects distance measurement and scale.
+
+```{r q1c, echo =FALSE, warning=FALSE}
+g_s_in_deg <- degree(g_s, mode = "in")
+g_s_out_deg <- degree(g_s, mode = "out")
+g_s_between <- betweenness(g_s, directed = TRUE)
+g_s_closeness <- closeness(g_s) 
+
+top_in_deg <- head(g_s_in_deg[order(g_s_in_deg, decreasing = TRUE)])
+top_out_deg <- head(g_s_out_deg[order(g_s_out_deg, decreasing = TRUE)])
+top_between <- head(g_s_between[order(g_s_between, decreasing = TRUE)])
+top_closeness <- head(g_s_closeness[order(g_s_closeness, decreasing = TRUE)])
+
+centrality_dt <- data.table("Node rank" = c(1:6),
+                             "In-degree" = names(top_in_deg),
+                             "Out-degree" = names(top_out_deg),
+                             "Closeness" = names(top_closeness),
+                             "Betweenness" = names(top_between))
+
+kable(centrality_dt, caption = 'The top 6 most important nodes based on the various centrality measures',
+      longtable = T, booktabs = T)
+```
+
+
+#  Page ranking 
+
+Then, various page-ranking measures were used to assess the importance and role of each node. The top 6 nodes are for each scoring method are shown in Table \@ref(tab:q2). From these results, an interesting observation is that nodes with high Hub scores such as 512, 387, 363 were also highly ranked in Out-degree Centrality. This finding suggests that these nodes (and other similar nodes having high Out-degree Centrality and Hub-scores) form a subset of important hub nodes. Similarly, nodes such as 155, 641 and 55, exhibit the same behaviour in terms of In-degree Centrality and Authority-scores and these would form an important subset of authoritative, meaningful and highly "referred" to nodes. Another interesting finding was that the *page.rank* algorithm with a *damping* parameter of 1 did not return a result, while using a value 0.99 worked. Clearly, this is indicative of the presence of an out-component(s) in the network, where PageRank scores would "flow" to and accumulate. Thus the presence of a scaled damping paramter is necessary.
+
+```{r q2, echo =FALSE}
+q2_graph <- g_s
+
+h_score_igraph <- hub_score(q2_graph)$vector
+top_h_score <- head(h_score_igraph[order(h_score_igraph, decreasing = TRUE)])
+a_score_igraph <- authority_score(q2_graph)$vector
+top_a_score <- head(a_score_igraph[order(a_score_igraph, decreasing = TRUE)])
+pr_99 <- page.rank(q2_graph, damping = 0.99)$vector
+pr_85 <- page.rank(q2_graph, damping = 0.85)$vector
+top_pr_99 <- head(pr_99[order(pr_99, decreasing = TRUE)])
+top_pr_85 <- head(pr_85[order(pr_85, decreasing = TRUE)])
+
+score_dt <- data.table("Node rank" = c(1:6),
+           "Hub Score" =  names(top_h_score),
+           "Authority Score" = names(top_a_score),
+           "PageRank (0.99)" =  names(top_pr_99),
+           "PageRank (0.85)" =  names(top_pr_85))
+
+kable(score_dt, caption = 'The top 6 most important nodes based on the various scores',
+      longtable = T, booktabs = T)
+```
+
+
+
+# Undirected network, components and coreness
+```{r q3a, echo=FALSE}
+g_u <- as.undirected(g_s)
+#resetting edge edge and vertex colors
+V(g_u)$color <- "darkorange"
+E(g_u)$color <- "grey"
+
+
+g_u_vcount <- vcount(g_u)
+g_u_ecount <- ecount(g_u)
+g_u_dens <- round(edge_density(g_u),5)
+g_u_diameter <- round(diameter(g_u),5)
+g_u_avg_dist <- round(mean_distance(g_u, unconnected = TRUE),5)
+
+g_u_deg <- degree(g_u, mode = "all")
+g_u_deg_dist <- degree.distribution(g_u, mode = "all")
+#plot(x = c(0:max(g_u_deg)), y = g_u_deg_dist, cex = 1.2, xlab = "Degree", ylab = "", col = 2, type = "l")
+
+g_u_deg_dist_cul <- degree.distribution(g_u, mode = "all", cumulative = TRUE)
+#plot(x = log(c(0:max(g_u_deg))), y = log(g_u_deg_dist_cul), cex = 1.2, xlab = "Degree", col = 2, type = "l")
+
+g_u_deg_add <- c(0:max(g_u_deg)) + 0.5 # adding 0.5 to shift from 0
+cul_deg_dist_dt <- data.table("log_deg"= log(g_u_deg_add), "log_ccdf" = log(g_u_deg_dist_cul))
+
+# Fitting linearmodel
+m <- lm(formula = log_ccdf  ~ log_deg, data = cul_deg_dist_dt)
+q3_alpha  <- round(m$coefficients["log_deg"] * -1, 5)
+```
+
+The simplified, directed network was then converted to an undirected network and its characteristics were examined. There are a total of `r toString(g_u_vcount)` vertices and `r toString(g_u_ecount)` edges, which is as expected since pairs of directed edges between 2 nodes would be collapsed to a single undirected edge. The overall edge density is `r toString(g_u_dens)`, which increases compared to the directed network. Also, the undirected diameter and average distance are  `r toString(g_u_diameter)` and `r toString(g_u_avg_dist)`.
+
+The undirected networks degree distribution is shown in Figure \@ref(fig:q3aplot) and similar to the directed network, it appears to exhibit a power-law distribution. Similar to the directed network, linear regression was applied to the complementary cumulative distribution function  and the $\alpha$ value obtained was `r toString(q3_alpha)`. The $\alpha$ value for the undirected graph was lower than the directed graph, suggesting that the undirected degree distribution is less right-skewed.
+
+
+```{r q3aplot, echo=FALSE, warning=FALSE,  fig.cap="Degree distribution of the simplified, undirected polblogs graph"}
+par(mar=c(0,0,0,0)+4)
+plot(x = 0:max(g_u_deg), y = g_u_deg_dist, cex = 1.2, xlab = "Degree",  ylab = "Frequency",col = 2, type = "l")
+```
+
+
+```{r q3b, echo=FALSE}
+#is.connected(g_u) False
+g_u_comps <- decompose.graph(g_u) #return the components, each as a graph
+g_u_n_comps <- length(g_u_comps)
+
+# Select the giant component
+giant_comp_idx <- which.max(sapply(g_u_comps, function(x) vcount(x)))
+g_u_giant <- g_u_comps[[giant_comp_idx]]
+V(g_u_giant)$color <- "darkorange"
+E(g_u_giant)$color <- "grey"
+g_u_giant_v_size <- vcount(g_u_giant)
+g_u_giant_e_size <- ecount(g_u_giant)
+```
+
+Then decomposing the undirected network, there are a total of `r toString(g_u_n_comps)` components, with a giant component $G$ comprising of `r toString(g_u_giant_v_size)` vertices and `r toString(g_u_giant_e_size)` edges. Clearly, $G$ accounts for a large proportion of nodes and edges of the entire network and its structure is shown in Figure \@ref(fig:q3bplot). $G$ exhibits an interesting structure, with 2 dense clusters  which appear to be well-connected, with several nodes in-between.
+
+
+```{r q3bplot, echo=FALSE, fig.cap="Plot of the giant component"}
+par(mar=c(0,0,0,0)+.1)
+plot(g_u_giant, vertex.label=NA, vertex.size = 4)
+```
+
+
+
+```{r q3c, echo=FALSE}
+g_u_coreness <- coreness(g_u)
+max_k <- max(g_u_coreness)
+
+kcore <- induced.subgraph(g, vids =  names(g_u_coreness[g_u_coreness >= max_k]))
+k_core_size <- vcount(kcore)
+```
+
+The maximum coreness is `r toString(max_k)`, resulting in a k-core of size `r toString(k_core_size)`. This 36-core is shown in Figure \@ref(fig:q3cplot), where every node in this induced sub-graph has a degree of at least 36, representing an extremely dense cluster of nodes in $G$.
+
+```{r q3cplot, echo=FALSE, fig.cap="Plot of the largest k-core"}
+par(mar=c(0,0,0,0)+.1)
+plot(kcore, vertex.label=NA, vertex.size = 4)
+```
+
+
+
+# Sampling
+
+```{r induced, echo =FALSE, fig.cap="Plot of induced subgraph"}
+q4_graph <- g_u
+K <- 500
+set.seed(12345)
+induced_sample_vids <-  as.character(sample(length(V(q4_graph)), K))
+induced_sample_graph <- induced.subgraph(q4_graph, vids = induced_sample_vids)
+induced_transitivity <- round(transitivity(induced_sample_graph, type = "global"), 5)
+induced_density <- round(edge_density(induced_sample_graph),5)
+undirected_transitivity <- round(transitivity(g_u, type = "global"), 5)
+```
+
+
+
+```{r incident, echo =FALSE, fig.cap="Plot of incident subgraph"}
+set.seed(12345)
+edge_num <- 594 #setting predfined edge number to get ~500 vertices in sampled subgraph
+incident_sample_eids <- E(q4_graph)[sample(length(E(q4_graph)), edge_num)]
+incident_sample_graph <- subgraph.edges(q4_graph, eids = incident_sample_eids)
+incident_transitivity <- round(transitivity(incident_sample_graph, type = "global"), 5)
+incident_density <- round(edge_density(incident_sample_graph),5)
+```
+
+
+We applied 4 sampling methods on the undirected graph, to obtain a sampled subgraph of approximately 500 vertices. The subgraphs from Induced and Incident subgraph sampling are respectively shown in Figure \@ref(fig:q4aplot) and \@ref(fig:q4bplot). Firstly, both subgraphs are disconnected, which is possibly a result of the numerous connected components and how neither sampling method guarantees a connected result. Secondly, the edge densities are `r toString(induced_density)` and `r toString(incident_density)` for the Induced and Incident subgraph respectively. These subgraphs are unsurprisngly denser than the original graph, given the large, densely connected giant component $G$. It should be noted that despite the higher edge density for the Induced subgraph, due to the large number of single-node components, the result subgraph has a number isolated nodes. Thirdly, when it comes to the transitivity/ clustering coefficient, the Induced subgraph has a value of `r toString(induced_transitivity)`, which is slightly higher than that of the undirected graph, of `r toString(undirected_transitivity)`. Interestingly, the Incident subgraph has a remarkably lower clustering coefficient of `r toString(incident_transitivity)`. Incident sampling naturally does not preserve the original connections between the eventual sampled nodes and every edge is sampled with equal probability. This could then potentially lead to a drop in the number of closed triangles formed in the subgraph and thus a lower clustering coefficient.
+
+```{r q4aplot, echo =FALSE, fig.cap="Plot of induced subgraph"}
+par(mar=c(0,0,0,0)+.1)
+plot(induced_sample_graph, vertex.label = NA, vertex.size = 4)
+```
+
+
+```{r q4bplot, echo =FALSE, fig.cap="Plot of incident subgraph"}
+par(mar=c(0,0,0,0)+.1)
+plot(incident_sample_graph, vertex.label = NA, vertex.size = 4)
+```
+
+
+
+```{r snowball, echo =FALSE, fig.cap="Plot of snowball subgraph"}
+set.seed(12345)
+snowball_v_set <- sample(V(q4_graph),1)
+snowball_iterations <- 0
+while(length(snowball_v_set) <= 500){
+  snowball_nbs <- adjacent_vertices(q4_graph, snowball_v_set)
+  
+  for (i in 1:length(snowball_nbs)){
+    snowball_v_set <- union(snowball_v_set, snowball_nbs[[i]])
+  }
+  
+  
+  snowball_iterations <- snowball_iterations + 1
+}
+
+snowball_sample_graph <- induced_subgraph(q4_graph, vids = snowball_v_set)
+snowball_density <- round(edge_density(snowball_sample_graph),5)
+snowball_transitivity  <- round(transitivity(snowball_sample_graph, type = "global"),5)
+```
+
+
+```{r respondent, echo =FALSE, fig.cap="Plot of respondent subgraph"}
+res_sample_graph <- g_s # use simplified, directed graph
+set.seed(123456)
+res_seed <- sample(V(q4_graph),1)
+k <- 3
+V(res_sample_graph)$color <- "grey"
+E(res_sample_graph)$color <- "grey"
+V(res_sample_graph)[res_seed]$color <- "red"
+res_vec <- c(res_seed)
+total_res_vec <- c(res_seed)
+n_res <- length(which(V(res_sample_graph)$color == "red"))
+edge_vec <- c()
+
+while (n_res <= 500){
+  new_res_vec <- c()
+  total_res_vec <- c()
+  for (res in res_vec){
+    res_nbs <- neighbors(res_sample_graph, res, mode = "out")
+    if (length(res_nbs) > k){
+      res_nbs <- sample(res_nbs, k)
+    }
+    for (nb in res_nbs){
+      V(res_sample_graph)[nb]$color <- "red"
+      E(res_sample_graph)[res %->% nb]$color <- "red"
+      
+      if (!nb %in% total_res_vec) {
+        total_res_vec <- c(total_res_vec, nb)
+        new_res_vec <- c(new_res_vec, nb)
+      }
+    }
+  }
+  res_vec <- new_res_vec
+  n_res <- length(which(V(res_sample_graph)$color == "red"))
+}
+
+res_sample_graph_sub <- delete.edges(res_sample_graph, E(res_sample_graph)[which(E(res_sample_graph)$color == "grey")]) # removing unsampled edges
+res_sample_graph_sub <- delete.vertices(res_sample_graph_sub, V(res_sample_graph_sub)[which(V(res_sample_graph_sub)$color == "grey")]) # removing unsampled vertices
+
+res_density <- round(edge_density(res_sample_graph_sub),5)
+res_transitivity  <- round(transitivity(res_sample_graph_sub, type = "global"),5)
+
+V(res_sample_graph_sub)$color <- "darkorange"
+E(res_sample_graph_sub)$color <- "grey"
+
+```
+
+Next, both Snowball and Respondent sampling guarantee a connected subgraph, which can be seen from their plots in Figure \@ref(fig:q4cplot) and Figure \@ref(fig:q4dplot). The density of the Snowball subgraph of `r toString(snowball_density)` is much higher than the original undirected graph and in fact very much resembles the giant component $G$. This is most likely due to how the random snowball seed node was chosen from $G$. Therefore. an eventual sampling size of 500 nodes would result in a output very similar to $G$, given how well connected the component is. If the random seed was chosen from a different component, the result would be very different. Given how much the Snowball subgraph resembles $G$, its transitivity of `r toString(snowball_transitivity)` is unsurprisingly very similar to the the original undirected graph.
+
+Here it should be noted that the simplified, directed graph was used to generate the Respondent subgraph. This was done as using the directed graph seemed to be more theoretically sound and in-line with what was taught, as compared to the undirected graph. The Respondent subgraph had a much lower density of `r toString(res_density)`, which is to be expected, given how the the out-degree/ token number **k** was set to 3. This naturally also impacted clustering coefficient, which also had a lower value of `r toString(res_transitivity)`.
+
+```{r q4cplot, echo =FALSE, fig.cap="Plot of snowball subgraph"}
+par(mar=c(0,0,0,0)+.1)
+plot(snowball_sample_graph, vertex.label=NA, vertex.size = 4)
+```
+
+
+```{r q4dplot, echo =FALSE, fig.cap="Plot of respondent subgraph"}
+par(mar=c(0,0,0,0)+.1)
+plot(res_sample_graph_sub, vertex.label=NA, vertex.size = 4)
+```
+
+
+# Partition
+
+The partitioning of $G$ was then examined. First, based on the provided true label/value of the network, nodes from two groups are colored as green/blue Figure \@ref(fig:q5plot). Clearly, the true groupings paritition the graph into the 2 distinct dense clusters, with some nodes clustering with the other grouping, which could be a result of potential human error.
+
+```{r q5plot, echo = FALSE, fig.cap = "True parition of giant component"}
+true_graph <- g_u_giant
+V(true_graph)$color[V(true_graph)$value == 0] <- "seagreen"
+V(true_graph)$color[V(true_graph)$value == 1] <- "dodgerblue"
+
+par(mar=c(0,0,0,0)+.1)
+plot(true_graph,  vertex.label = NA, vertex.size = 4)
+```
+
+First, we partitioned based on betweeness, iteratively removing edges with the highest betweeness. The partition is shown in Figure \@ref(fig:q5plot). The usage of betweeness in this case is clearly flawed, as it resulted in 4 nodes from $G$ partitioned into a separate group. In fact, only a single edge was removed from the $G$ to produce this parition. A possible explanation of this is as follows. There appear to be a significant number of edges connecting the 2 dense clusters, as such there are numerous shortest paths between both clusters. Therefore for any given connecting edge, the proportion of shortest paths it is involved in would actually relatively low and as such the betweeness for these connecting edges would actually be low. Now consider the 4 nodes that were paritioned by the removal of a single edge, referred as $e$. Now every shortest path to these 4 nodes would have to pass through $e$, resulting in a high betweeness value. This example here potentially highlights a limitation of using betweeness as a parition measure when the 2 communities are actually relatively well connected.
+
+```{r q5aplot,echo = FALSE, fig.cap="Betweenness partition"}
+betw_partition <- g_u_giant
+while(components(betw_partition)$no < 2){
+  edges <- E(betw_partition)
+  bet = edge_betweenness(betw_partition, e = edges, directed = FALSE);
+  max_bet = which.max(bet)
+  betw_partition = betw_partition - edges[max_bet];
+}
+betw_part_1 <- decompose.graph(betw_partition)[[1]]
+betw_part_2 <- decompose.graph(betw_partition)[[2]]
+V(betw_partition)$color <- "seagreen"
+V(betw_partition)$color[which(V(betw_partition)$name %in% V(betw_part_2)$name)] <- "dodgerblue"
+par(mar=c(0,0,0,0)+.1)
+plot(betw_partition, vertex.label = NA, vertex.size = 4)
+```
+
+```{r hierch ,echo = FALSE}
+g_u_giant_adj <- get.adjacency(g_u_giant) 
+#load(dist_mat_rdata)
+dist_mat <- graphdist(g_u_giant_adj) 
+d_mat <- as.dist(dist_mat)
+complete_partition <- hclust(d_mat, method = "complete") %>%
+  cutree(k=2)
+average_partition <- hclust(d_mat, method = "average") %>%
+  cutree(k=2)
+single_partition <- hclust(d_mat, method = "single") %>%
+  cutree(k=2)
+
+hier_graph <- g_u_giant
+V(hier_graph)$complete <- complete_partition
+V(hier_graph)$average <- average_partition
+V(hier_graph)$single <- single_partition
+
+complete_lab_mat <- as.matrix(table(V(hier_graph)$complete, V(hier_graph)$value))
+complete_err_stat <- (complete_lab_mat[1,2] + complete_lab_mat[2,1]) / vcount(hier_graph)
+complete_err_rate <- round(min(1-complete_err_stat  , complete_err_stat),5)
+
+average_lab_mat <- as.matrix(table(V(hier_graph)$average, V(hier_graph)$value))
+average_err_stat <- (average_lab_mat[1,2] + average_lab_mat[2,1]) / vcount(hier_graph)
+average_err_rate <- round(min(1-average_err_stat  , average_err_stat),5)
+```
+
+
+Next, we paritioned $G$ based on hierarchical clustering with euclidean distance, with 3 different types of linkages. The partition for complete linkage is shown in Figure \@ref(fig:q5bplot) and its error rate was found to be `r toString(complete_err_rate)`. The plot and error rate show that slighlty less than half of the nodes were mis-grouped. Additionally, when single and average linkage were examined, all but one of the nodes were grouped into a single partition, which is shown in Figure \@ref(fig:q5cplot). The resulting error rates for both single and average linkage was `r toString(average_err_rate)`. Unexpectedly, all 3 methods performed very poorly, which is surprising given how the structure of $G$ appeared. A possible explanation could lie in 3 factors: *1)* The fact that generally both clusters appear to be well connected to each other, *2)* There could be a dense "out-component" (since $G$ is undirected and "out-component" refers to a set of nodes with the same grouping, and are generally strongly connected to each other but weakly connected to every other node in the group) and *3)* There could be a "fringe" node in this "out-component" that is weakly connected. The first 2 factors could explain why using complete linkage only a small subset of nodes from the "out-component" were partitioned. And an additional third factor could possibly explain why a single node was paritioned alone using average and single linkage.
+
+
+```{r q5bplot, echo=FALSE, fig.cap="Complete-linkage partition"}
+V(hier_graph)$color[V(hier_graph)$complete == 1] <- "seagreen"
+V(hier_graph)$color[V(hier_graph)$complete == 2] <- "dodgerblue"
+par(mar=c(0,0,0,0)+.1)
+plot(hier_graph,  vertex.label = NA, vertex.size = 4)
+```
+
+
+```{r q5cplot, echo=FALSE,fig.cap="Average-linkage partition (Left) and Single-Linkage partition (right)"}
+V(hier_graph)$color[V(hier_graph)$average == 1] <- "seagreen"
+V(hier_graph)$color[V(hier_graph)$average == 2] <- "dodgerblue"
+par(mar=c(0,0,0,0)+.1)
+par(mfrow = c(1, 2))
+plot(hier_graph,  vertex.label = NA, vertex.size = 4)
+
+V(hier_graph)$color[V(hier_graph)$single == 1] <- "seagreen"
+V(hier_graph)$color[V(hier_graph)$single == 2] <- "dodgerblue"
+par(mar=c(0,0,0,0)+.1)
+plot(hier_graph,  vertex.label = NA, vertex.size = 4)
+```
+
+
+```{r mod, echo=FALSE}
+mod_graph <- g_u_giant
+mod_community <- fastgreedy.community(mod_graph)
+mod_community_cut <- cut_at(mod_community, no = 2)
+V(mod_graph)$mod_value <- sapply(mod_community_cut, function(x) ifelse(x == 2, 0, 1)) # renaming assigned communities
+
+mod_part_score <- round(modularity(mod_graph, V(mod_graph)$mod_value+1),5)# adding 1 to shift membership
+true_mod_score <- round(modularity(mod_graph, V(mod_graph)$value+1),5) # adding 1 to shift membership
+
+mod_lab_mat <- as.matrix(table(V(mod_graph)$mod_value, V(g_u_giant)$value))
+mod_err_stat <- round((mod_lab_mat[1,2] + mod_lab_mat[2,1]) / vcount(mod_graph),5)
+mod_err_rate <- min(1-mod_err_stat , mod_err_stat)
+
+V(mod_graph)$color[V(mod_graph)$mod_value == 0] <- "seagreen"
+V(mod_graph)$color[V(mod_graph)$mod_value == 1] <- "dodgerblue"
+
+```
+
+Next, modularity method was used to partition the network. The modularity score for the partition is `r toString(mod_part_score)`, which is slightly higher than the score for the true partition of `r toString(true_mod_score)`. Accordingly, the error rate of `r toString(mod_err_rate)` is relatively low and its reflected in Figure \@ref(fig:q5modplot) which resembles the true partition.
+
+
+```{r q5modplot,echo=FALSE, fig.cap="Modularity partition"}
+par(mar=c(0,0,0,0)+.1)
+plot(mod_graph,  vertex.label = NA, vertex.size = 4)
+```
+
+
+```{r kmeans, echo=FALSE}
+kmeans_graph <- g_u_giant
+g_u_giant_adj <- get.adjacency(g_u_giant)
+v1 <- eigen(g_u_giant_adj)$vectors[,1]
+v2 <- eigen(g_u_giant_adj)$vectors[,2]
+r <- v2/v1
+kmeans <- kmeans(r, centers =2)
+kmeans_commumity <- sapply(kmeans$cluster, function(x) ifelse(x == 2, 0, 1))
+V(kmeans_graph)$kmeans_value <- kmeans_commumity
+
+kmeans_lab_mat <- as.matrix(table(V(kmeans_graph)$kmeans_value, V(kmeans_graph)$value))
+kmeans_err_stat <- (kmeans_lab_mat[1,2] + kmeans_lab_mat[2,1]) / vcount(kmeans_graph)
+kmeans_err_rate <- min(1-kmeans_err_stat , kmeans_err_stat)
+
+V(kmeans_graph)$color[V(kmeans_graph)$kmeans_value == 0] <- "seagreen"
+V(kmeans_graph)$color[V(kmeans_graph)$kmeans_value == 1] <- "dodgerblue"
+
+```
+
+Lastly, we used a partition method based on a stochastic block model (SBM) that uses kmeans to divide the labels of the nodes. Similar to modularity score partition, the error rate for the SBM partition was found to be low, at `r toString(mod_err_rate)` and this is also reflected in Figure \@ref(fig:q5eplot) and how it resembles the true partition.
+
+```{r q5eplot, echo =FALSE, fig.cap="SBM partition"}
+par(mar=c(0,0,0,0)+.1)
+plot(kmeans_graph,  vertex.label = NA, vertex.size = 4)
+```
+
+
+# Stochastic Block Model 
+
+```{r SBM, echo = FALSE}
+# only need to estimate b11, b22, b12
+comm_0_vertices <- V(g_u_giant)[V(g_u_giant)$value == 0]
+comm_0 <- induced_subgraph(g_u_giant, vids = comm_0_vertices)
+comm_0_edges <- E(comm_0)
+comm_1_vertices <- V(g_u_giant)[V(g_u_giant)$value == 1]
+comm_1 <- induced_subgraph(g_u_giant, vids = comm_1_vertices)
+comm_1_edges <- E(comm_1)
+
+# Using vertices within each community
+b11 <- round(length(E(comm_1)) / choose(length(V(comm_1)),2),5)
+b00 <- round(length(E(comm_0)) / choose(length(V(comm_0)),2),5)
+
+# no. edges between comm1 and 2 = total edges - comm1 edges - comm2 edges
+e10 <- length(E(g_u_giant)) - length(comm_1_edges) - length(comm_0_edges)
+
+b10 <- round(e10 / (length(comm_0_vertices) * length(comm_1_vertices)),5)
+```
+
+Lastly, an SBM was fit to this network and the parameter matrix $B$ was estimated. Since there are 2 communuties (0/1) and the network is undirected, there are 3 parameters to estimate: b11, b00 and b10. They were found to be: 1) b11 : `r toString(b11)`, 2) b00 : `r toString(b00)` and 3) b10: `r toString(b10)`. These values are to be expected, considering how the observed edge density between the communities is much lower than the within community edge density. 
+
